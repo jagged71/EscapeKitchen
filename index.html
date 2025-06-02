@@ -1,0 +1,807 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Goblin Escape</title>
+  <style>
+    body {
+      font-family: 'Verdana', sans-serif;
+      background-color: #1b1b1b;
+      color: #eee;
+      text-align: center;
+      margin: 0;
+      padding: 20px;
+      background-image: linear-gradient(45deg, #2d2d2d 25%, transparent 25%), 
+                        linear-gradient(-45deg, #2d2d2d 25%, transparent 25%), 
+                        linear-gradient(45deg, transparent 75%, #2d2d2d 75%), 
+                        linear-gradient(-45deg, transparent 75%, #2d2d2d 75%);
+      background-size: 20px 20px;
+      background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+      min-height: 100vh;
+    }
+
+    #game-container {
+      max-width: 800px;
+      margin: 0 auto;
+      background-color: rgba(0, 0, 0, 0.8);
+      border-radius: 10px;
+      padding: 20px;
+      box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+      border: 2px solid #444;
+    }
+
+    #game, #prize {
+      display: none;
+    }
+
+    .stats {
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 1rem;
+      margin-bottom: 15px;
+      background-color: rgba(0, 0, 0, 0.5);
+      padding: 10px;
+      border-radius: 5px;
+    }
+
+    #grid {
+      display: grid;
+      gap: 8px;
+      margin: 20px auto;
+      width: fit-content;
+      background-color: rgba(0, 0, 0, 0.5);
+      padding: 15px;
+      border-radius: 8px;
+    }
+
+    .tile {
+      width: 60px;
+      height: 60px;
+      background-color: #3a3a3a;
+      border: 2px solid #555;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.8rem;
+      transition: all 0.2s;
+      border-radius: 5px;
+    }
+
+    .tile:hover:not(.revealed) {
+      background-color: #555;
+      transform: scale(1.05);
+      box-shadow: 0 0 10px rgba(248, 208, 48, 0.5);
+    }
+
+    .tile.revealed {
+      background-color: #222;
+      cursor: default;
+      transform: none;
+      box-shadow: none;
+    }
+
+    .tile.disabled {
+      cursor: not-allowed;
+      opacity: 0.6;
+    }
+
+    .enemy {
+      color: #ff5555;
+      text-shadow: 0 0 5px #ff0000;
+    }
+
+    .loot {
+      color: #55ff55;
+      text-shadow: 0 0 5px #00ff00;
+    }
+
+    .critical {
+      background-color: #f90;
+      color: #000;
+      animation: pulse 0.5s infinite;
+    }
+
+    #message {
+      margin: 15px 0;
+      min-height: 1.5em;
+      padding: 10px;
+      background-color: rgba(0, 0, 0, 0.5);
+      border-radius: 5px;
+      font-size: 1.1em;
+    }
+
+    .button {
+      padding: 12px 25px;
+      margin: 10px;
+      font-size: 16px;
+      background: linear-gradient(to bottom, #5a6a4a, #3a4a2a);
+      color: #f8d030;
+      border: none;
+      cursor: pointer;
+      border-radius: 5px;
+      transition: all 0.2s;
+    }
+
+    .button:hover {
+      background: linear-gradient(to bottom, #7a8a6a, #5a6a4a);
+      transform: translateY(-2px);
+      box-shadow: 0 5px 10px rgba(0, 0, 0, 0.2);
+    }
+
+    .button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    #sound-toggle {
+      position: fixed;
+      top: 15px;
+      right: 15px;
+      font-size: 24px;
+      cursor: pointer;
+      background-color: rgba(0, 0, 0, 0.7);
+      padding: 8px;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      transition: all 0.2s;
+    }
+
+    #sound-toggle:hover {
+      background-color: rgba(0, 0, 0, 0.9);
+      transform: scale(1.1);
+    }
+
+    #prize {
+      font-size: 1.4em;
+      margin: 20px auto;
+      padding: 15px;
+      background-color: rgba(0, 0, 0, 0.7);
+      border-radius: 8px;
+      max-width: 80%;
+      animation: celebrate 1s ease;
+      border: 2px solid #f8d030;
+    }
+
+    #game-over {
+      margin-top: 20px;
+      padding: 15px;
+      background-color: rgba(0, 0, 0, 0.7);
+      border-radius: 8px;
+    }
+
+    .overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.9);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+      animation: fadeIn 0.5s ease;
+    }
+
+    .overlay-content {
+      background: linear-gradient(135deg, #2d2d2d, #1a1a1a);
+      border: 3px solid #f8d030;
+      border-radius: 15px;
+      padding: 30px;
+      text-align: center;
+      max-width: 500px;
+      width: 90%;
+      box-shadow: 0 0 30px rgba(248, 208, 48, 0.3);
+      position: relative;
+    }
+
+    .win-overlay .overlay-content {
+      border-color: #55ff55;
+      box-shadow: 0 0 30px rgba(85, 255, 85, 0.3);
+    }
+
+    .lose-overlay .overlay-content {
+      border-color: #ff5555;
+      box-shadow: 0 0 30px rgba(255, 85, 85, 0.3);
+    }
+
+    .overlay h2 {
+      font-size: 2.5em;
+      margin: 0 0 20px 0;
+      text-shadow: 2px 2px 4px #000;
+    }
+
+    .win-overlay h2 {
+      color: #55ff55;
+    }
+
+    .lose-overlay h2 {
+      color: #ff5555;
+    }
+
+    .overlay-message {
+      font-size: 1.2em;
+      margin: 15px 0;
+      line-height: 1.4;
+    }
+
+    .prize-text {
+      font-size: 1.3em;
+      color: #f8d030;
+      font-weight: bold;
+      margin: 20px 0;
+      padding: 15px;
+      background-color: rgba(248, 208, 48, 0.1);
+      border-radius: 8px;
+      border: 1px solid #f8d030;
+    }
+
+    .splinterlands-promo {
+      margin: 25px 0;
+      padding: 20px;
+      background: linear-gradient(135deg, #1e3a8a, #3b82f6);
+      border-radius: 10px;
+      border: 2px solid #60a5fa;
+    }
+
+    .splinterlands-promo h3 {
+      color: #ffffff;
+      margin: 0 0 10px 0;
+      font-size: 1.3em;
+    }
+
+    .splinterlands-promo a {
+      color: #fbbf24;
+      text-decoration: none;
+      font-weight: bold;
+      font-size: 1.1em;
+      transition: all 0.3s;
+      display: inline-block;
+      padding: 8px 16px;
+      background-color: rgba(251, 191, 36, 0.2);
+      border-radius: 5px;
+      border: 1px solid #fbbf24;
+    }
+
+    .splinterlands-promo a:hover {
+      background-color: #fbbf24;
+      color: #1e3a8a;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+    }
+
+    .overlay-buttons {
+      margin-top: 25px;
+      display: flex;
+      gap: 15px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    #difficulty-select {
+      background-color: rgba(0, 0, 0, 0.7);
+      padding: 25px;
+      border-radius: 10px;
+      max-width: 600px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      color: #f8d030;
+      text-shadow: 2px 2px 4px #000;
+      margin-bottom: 20px;
+      font-size: 2.5em;
+    }
+
+    #referral {
+      margin-top: 25px;
+      padding: 15px;
+      background-color: rgba(0, 0, 0, 0.7);
+      border-radius: 8px;
+    }
+
+    #referral a {
+      color: #f8d030;
+      text-decoration: none;
+      font-weight: bold;
+      font-size: 1.1em;
+      transition: all 0.2s;
+    }
+
+    #referral a:hover {
+      text-decoration: underline;
+      color: #fff;
+    }
+
+    @keyframes pulse {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.1); }
+      100% { transform: scale(1); }
+    }
+
+    @keyframes fadeIn {
+      0% { opacity: 0; transform: scale(0.8); }
+      100% { opacity: 1; transform: scale(1); }
+    }
+
+    .game-over-message {
+      color: #ff5555;
+      font-weight: bold;
+      font-size: 1.2em;
+    }
+
+    .victory-message {
+      color: #55ff55;
+      font-weight: bold; 
+      font-size: 1.2em;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="sound-toggle" onclick="toggleSound()">🔊</div>
+
+  <div id="game-container">
+    <h1>Goblin Escape</h1>
+
+    <div id="difficulty-select">
+      <p style="font-size: 1.2em; margin-bottom: 20px;">Select difficulty:</p>
+      <button class="button" onclick="startGame('easy')">Easy</button>
+      <button class="button" onclick="startGame('hard')">Hard</button>
+      <button class="button" onclick="startGame('brutal')">Brutal</button>
+      <button class="button" onclick="startGame('legendary')">Legendary</button>
+      
+      <div id="referral">
+        <p>Want to play the real Splinterlands?</p>
+        <a href="https://splinterlands.com/register?ref=jagged71" target="_blank">
+          Join using my referral link!
+        </a>
+      </div>
+    </div>
+
+    <div id="game">
+      <div class="stats">
+        <div>❤️ Health: <span id="health">0</span></div>
+        <div>🛡️ Shield: <span id="shield">0</span></div>
+        <div>🔑 Key: <span id="key">❌</span></div>
+        <div>🕓 Turns: <span id="turns">0</span></div>
+      </div>
+      <div id="grid"></div>
+      <div id="message">Find the key and escape the Goblin's kitchen!</div>
+      
+      <div id="game-over" style="display: none;">
+        <button class="button" onclick="playAgain()">Play Again</button>
+        <button class="button" onclick="backToMenu()">Back to Menu</button>
+      </div>
+    </div>
+
+    <div id="prize">🎉 You escaped! Reward: ???</div>
+  </div>
+
+  <!-- Win Overlay -->
+  <div id="win-overlay" class="overlay win-overlay">
+    <div class="overlay-content">
+      <h2>🎉 Victory! 🎉</h2>
+      <div class="overlay-message">You successfully escaped the Goblin's kitchen!</div>
+      <div id="prize-display" class="prize-text"></div>
+      
+      <div class="splinterlands-promo">
+        <h3>🃏 Ready for the Real Challenge?</h3>
+        <p>Come and Play the Full Game!</p>
+        <a href="https://splinterlands.com/register?ref=jagged71" target="_blank">
+          Join Splinterlands.com Now!
+        </a>
+      </div>
+      
+      <div class="overlay-buttons">
+        <button class="button" onclick="playAgain()">Play Again</button>
+        <button class="button" onclick="backToMenu()">Back to Menu</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Lose Overlay -->
+  <div id="lose-overlay" class="overlay lose-overlay">
+    <div class="overlay-content">
+      <h2>💀 Game Over 💀</h2>
+      <div id="lose-message" class="overlay-message">The goblins got you!</div>
+      
+      <div class="splinterlands-promo">
+        <h3>🃏 Don't Give Up!</h3>
+        <p>Try Your Skills in the Real Splinterlands!</p>
+        <a href="https://splinterlands.com/register?ref=jagged71" target="_blank">
+          Join Splinterlands.com Now!
+        </a>
+      </div>
+      
+      <div class="overlay-buttons">
+        <button class="button" onclick="playAgain()">Try Again</button>
+        <button class="button" onclick="backToMenu()">Back to Menu</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+  // Simple sound system using Web Audio API
+  let audioContext;
+  let soundEnabled = true;
+  let gameActive = false;
+
+  // Initialize audio context
+  function initAudio() {
+    try {
+      audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    } catch (e) {
+      console.log('Web Audio API not supported');
+      audioContext = null;
+    }
+  }
+
+  // Create simple beep sounds
+  function createBeep(frequency, duration, type = 'sine') {
+    if (!audioContext || !soundEnabled) return;
+    
+    try {
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+      
+      oscillator.frequency.value = frequency;
+      oscillator.type = type;
+      
+      gainNode.gain.setValueAtTime(0.1, audioContext.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + duration);
+      
+      oscillator.start(audioContext.currentTime);
+      oscillator.stop(audioContext.currentTime + duration);
+    } catch (e) {
+      console.log('Sound generation error:', e);
+    }
+  }
+
+  function toggleSound() {
+    soundEnabled = !soundEnabled;
+    document.getElementById('sound-toggle').textContent = soundEnabled ? '🔊' : '🔇';
+    if (soundEnabled && !audioContext) {
+      initAudio();
+    }
+    if (soundEnabled) playSound('click');
+  }
+
+  function playSound(type) {
+    if (!soundEnabled || !audioContext) return;
+    
+    // Resume audio context if suspended
+    if (audioContext.state === 'suspended') {
+      audioContext.resume();
+    }
+    
+    switch (type) {
+      case 'click':
+        createBeep(800, 0.1);
+        break;
+      case 'enemy':
+        createBeep(150, 0.3, 'sawtooth');
+        break;
+      case 'loot':
+        createBeep(600, 0.2);
+        setTimeout(() => createBeep(800, 0.2), 100);
+        break;
+      case 'trap':
+        createBeep(100, 0.5, 'square');
+        break;
+      case 'heal':
+        createBeep(520, 0.15);
+        setTimeout(() => createBeep(659, 0.15), 150);
+        setTimeout(() => createBeep(784, 0.2), 300);
+        break;
+      case 'key':
+        createBeep(523, 0.2);
+        setTimeout(() => createBeep(659, 0.2), 200);
+        setTimeout(() => createBeep(784, 0.3), 400);
+        break;
+      case 'win':
+        createBeep(523, 0.2);
+        setTimeout(() => createBeep(659, 0.2), 200);
+        setTimeout(() => createBeep(784, 0.2), 400);
+        setTimeout(() => createBeep(1047, 0.4), 600);
+        break;
+      case 'lose':
+        createBeep(400, 0.3);
+        setTimeout(() => createBeep(300, 0.3), 300);
+        setTimeout(() => createBeep(200, 0.5), 600);
+        break;
+    }
+  }
+
+  // Game configuration
+  const PRIZES = {
+    easy:    { dec: [100, 500], sps: null, pack: false },
+    hard:    { dec: [200, 1000], sps: [1, 3], pack: false },
+    brutal:  { dec: [500, 2000], sps: [4, 10], pack: false },
+    legendary: { dec: [1000, 3000], sps: [10, 50], pack: true }
+  };
+
+  let gridSize, health, shield, hasKey, exitFound, turns;
+  let difficulty, enemyPositions = [], tiles = [];
+
+  // Initialize audio when page loads
+  window.onload = function() {
+    initAudio();
+    // Enable audio context on first user interaction
+    document.addEventListener('click', function enableAudio() {
+      if (audioContext && audioContext.state === 'suspended') {
+        audioContext.resume();
+      }
+      document.removeEventListener('click', enableAudio);
+    }, { once: true });
+  };
+
+  function startGame(diff) {
+    playSound('click');
+    difficulty = diff;
+    gameActive = true;
+    
+    document.getElementById('difficulty-select').style.display = 'none';
+    document.getElementById('game').style.display = 'block';
+    document.getElementById('prize').style.display = 'none';
+
+    // Difficulty settings
+    if (difficulty === 'easy') {
+      gridSize = 5; health = 4; turns = 20;
+    } else if (difficulty === 'hard') {
+      gridSize = 6; health = 3; turns = 18;
+    } else if (difficulty === 'brutal') {
+      gridSize = 7; health = 2; turns = 15;
+    } else {
+      gridSize = 8; health = 1; turns = 12;
+    }
+
+    shield = 0;
+    hasKey = false;
+    exitFound = false;
+    enemyPositions = [];
+    tiles = Array(gridSize * gridSize).fill('Empty');
+
+    placeRandom('Exit', 1);
+    placeRandom('Key', 1);
+    placeRandom('Enemy', difficulty === 'easy' ? 4 : difficulty === 'hard' ? 6 : difficulty === 'brutal' ? 9 : 12);
+    placeRandom('Loot', 5);
+    placeRandom('Trap', difficulty === 'legendary' ? 6 : 3);
+    placeRandom('Heal', difficulty === 'legendary' ? 1 : 2);
+
+    buildGrid();
+    updateStats();
+    
+    // Hide game over buttons and reset message
+    document.querySelector('#game #game-over').style.display = 'none';
+    document.getElementById('message').textContent = "Find the key and escape the Goblin's kitchen!";
+    document.getElementById('message').className = '';
+  }
+
+  function placeRandom(type, count) {
+    for (let i = 0; i < count; i++) {
+      let index;
+      do { index = Math.floor(Math.random() * tiles.length); }
+      while (tiles[index] !== 'Empty');
+      tiles[index] = type;
+      if (type === 'Enemy') enemyPositions.push(index);
+    }
+  }
+
+  function buildGrid() {
+    const grid = document.getElementById('grid');
+    grid.style.gridTemplateColumns = `repeat(${gridSize}, 60px)`;
+    grid.innerHTML = '';
+    for (let i = 0; i < tiles.length; i++) {
+      const tile = document.createElement('div');
+      tile.className = 'tile';
+      tile.dataset.index = i;
+      tile.onclick = () => {
+        if (gameActive) {
+          playSound('click');
+          revealTile(i, tile);
+        }
+      };
+      grid.appendChild(tile);
+    }
+  }
+
+  function updateStats() {
+    document.getElementById('health').textContent = health;
+    document.getElementById('shield').textContent = shield;
+    document.getElementById('key').textContent = hasKey ? '✅' : '❌';
+    document.getElementById('turns').textContent = turns;
+    
+    // Highlight critical stats
+    document.getElementById('health').style.color = health <= 1 ? '#ff5555' : '';
+    document.getElementById('health').style.fontWeight = health <= 1 ? 'bold' : '';
+    document.getElementById('turns').style.color = turns <= 5 ? '#ff5555' : '';
+    document.getElementById('turns').style.fontWeight = turns <= 5 ? 'bold' : '';
+  }
+
+  function checkWinCondition() {
+    if (hasKey && exitFound) {
+      playSound('win');
+      document.getElementById('message').textContent = 'You have both the key and found the exit! You escaped!';
+      document.getElementById('message').className = 'victory-message';
+      endGame(true);
+    }
+  }
+
+  function endGame(victory = false) {
+    gameActive = false;
+    
+    // Disable all tiles
+    const tiles = document.querySelectorAll('.tile');
+    tiles.forEach(tile => {
+      tile.classList.add('disabled');
+    });
+    
+    if (victory) {
+      showWinOverlay();
+    } else {
+      showLoseOverlay();
+    }
+  }
+
+  function revealTile(index, tileEl) {
+    if (tileEl.classList.contains('revealed') || !gameActive || turns <= 0 || health <= 0) return;
+    
+    // Clear any existing content first
+    tileEl.textContent = '';
+    tileEl.classList.remove('enemy', 'loot', 'critical');
+    
+    tileEl.classList.add('revealed');
+    let type = tiles[index];
+    turns--;
+
+    switch (type) {
+      case 'Enemy':
+        playSound('enemy');
+        tileEl.textContent = '👹';
+        if (shield > 0) {
+          shield--;
+          document.getElementById('message').textContent = 'Blocked an enemy with your shield!';
+        } else {
+          health--;
+          document.getElementById('message').textContent = 'Ouch! A hungry goblin hit you!';
+          tileEl.classList.add('enemy');
+        }
+        break;
+      case 'Trap':
+        playSound('trap');
+        tileEl.textContent = '💥';
+        if (shield > 0) {
+          shield--;
+          document.getElementById('message').textContent = 'Trap triggered! Shield absorbed the damage!';
+        } else {
+          health--;
+          document.getElementById('message').textContent = 'Snap! You walked into a trap!';
+          tileEl.classList.add('critical');
+        }
+        break;
+      case 'Loot':
+        playSound('loot');
+        tileEl.textContent = '🍄';
+        shield++;
+        document.getElementById('message').textContent = 'You found a mushroom shield!';
+        tileEl.classList.add('loot');
+        break;
+      case 'Heal':
+        playSound('heal');
+        tileEl.textContent = '❤️';
+        health++;
+        document.getElementById('message').textContent = 'A healing herb! +1 ❤️';
+        tileEl.classList.add('loot');
+        break;
+      case 'Key':
+        playSound('key');
+        tileEl.textContent = '🔑';
+        hasKey = true;
+        document.getElementById('message').textContent = 'You found the key!';
+        tileEl.classList.add('loot');
+        // Check if we should end the game after finding key
+        checkWinCondition();
+        break;
+      case 'Exit':
+        tileEl.textContent = '🚪';
+        exitFound = true;
+        if (hasKey) {
+          playSound('win');
+          document.getElementById('message').textContent = 'You escaped the Goblin\'s kitchen!';
+          document.getElementById('message').className = 'victory-message';
+          endGame(true);
+          return;
+        } else {
+          document.getElementById('message').textContent = 'You found the exit! Now find the key!';
+          // Check if we should end the game after finding exit
+          checkWinCondition();
+        }
+        break;
+      default:
+        tileEl.textContent = '·';
+        document.getElementById('message').textContent = 'It\'s just crumbs...';
+        break;
+    }
+
+    updateStats();
+    
+    // Check for game over conditions
+    if (health <= 0) {
+      playSound('lose');
+      document.getElementById('message').textContent = 'You died! The goblins got you!';
+      document.getElementById('message').className = 'game-over-message';
+      endGame(false);
+    } else if (turns <= 0) {
+      playSound('lose');
+      document.getElementById('message').textContent = 'Out of time! You failed to escape!';
+      document.getElementById('message').className = 'game-over-message';
+      endGame(false);
+    }
+  }
+
+  function showWinOverlay() {
+    const prize = PRIZES[difficulty];
+    let rewardText = `${getRandom(prize.dec)} DEC`;
+    
+    if (prize.sps) {
+      rewardText += ` + ${getRandom(prize.sps)} SPS`;
+    }
+    if (prize.pack && Math.random() < 0.3) { // 30% chance for pack
+      rewardText += ` + Conclave Arcana Pack!`;
+    }
+    
+    document.getElementById('prize-display').textContent = `Reward: ${rewardText}`;
+    document.getElementById('win-overlay').style.display = 'flex';
+  }
+
+  function showLoseOverlay() {
+    // Set appropriate lose message based on how they lost
+    let loseMessage = 'The goblins got you!';
+    if (health <= 0) {
+      loseMessage = 'You died! The goblins overwhelmed you!';
+    } else if (turns <= 0) {
+      loseMessage = 'Out of time! You failed to escape in time!';
+    }
+    
+    document.getElementById('lose-message').textContent = loseMessage;
+    document.getElementById('lose-overlay').style.display = 'flex';
+  }
+
+  function hideOverlays() {
+    document.getElementById('win-overlay').style.display = 'none';
+    document.getElementById('lose-overlay').style.display = 'none';
+  }
+
+  function playAgain() {
+    playSound('click');
+    hideOverlays();
+    startGame(difficulty);
+  }
+
+  function backToMenu() {
+    playSound('click');
+    gameActive = false;
+    hideOverlays();
+    document.getElementById('difficulty-select').style.display = 'block';
+    document.getElementById('game').style.display = 'none';
+    document.getElementById('prize').style.display = 'none';
+  }
+
+  function getRandom(range) {
+    return Math.floor(Math.random() * (range[1] - range[0] + 1)) + range[0];
+  }
+</script>
+</body>
+</html>
